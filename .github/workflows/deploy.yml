@@ -1,0 +1,53 @@
+name: Terraform Deploy
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      s3mock:
+        image: localstack/localstack:3.8.1
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Wait for mock S3
+        run: |
+          for i in $(seq 1 30); do
+            curl -s http://localhost:4566/_localstack/health && break
+            sleep 2
+          done
+      - run: terraform init
+      - run: terraform validate
+      - run: terraform plan
+
+  apply:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    services:
+      s3mock:
+        image: localstack/localstack:3.8.1
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Wait for mock S3
+        run: |
+          for i in $(seq 1 30); do
+            curl -s http://localhost:4566/_localstack/health && break
+            sleep 2
+          done
+      - run: terraform init
+      - run: terraform apply -auto-approve
